@@ -11,10 +11,11 @@ int main(int argc, char** argv) {
 	array<sample, CLASSES> samples;
 	array<double, CLASSES> priors, logPriors, varDets = {}, logVarDets = {};
 	array<CovMatrix, CLASSES> varInverses;
-	array<observation, CLASSES> means = getMeans(arg.set);
-	array<CovMatrix, CLASSES> vars    = getVars(arg.set);
-	array<unsigned, CLASSES> sizes    = getSizes(arg.set);
+	array<unsigned, CLASSES> sizes = getSizes(arg.set);
 	getSamples(arg.set, samples, arg.seed);
+
+	array<observation, CLASSES> means = getSampleMeans(samples);
+	array<CovMatrix, CLASSES> vars    = getSampleVars(samples, means);
 
 	observation min = samples[0].front(), max = samples[0].front();
 
@@ -28,6 +29,13 @@ int main(int argc, char** argv) {
 	               });
 
 	std::cout << "Classifying data set \"" << dataSetName(arg.set) << "\" - " << CLASSES << " classes.\n";
+
+	for (unsigned i = 0; i < CLASSES; i++) {
+		std::cout << "Class " << (i + 1) << ":\n"
+		          << "Sample Mean:\n"
+		          << means[i] << "\nSample Variance:\n"
+		          << vars[i] << "\n\n";
+	}
 
 	// Compute which case we're in from the book
 	if (arg.discriminantCase == 0) {
@@ -141,6 +149,23 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
+array<observation, CLASSES> getSampleMeans(const array<sample, CLASSES>& samples) {
+	array<observation, CLASSES> means;
+
+	for (unsigned i = 0; i < CLASSES; i++) { means[i] = sampleMean(samples[i]); }
+
+	return means;
+}
+
+array<CovMatrix, CLASSES> getSampleVars(const array<sample, CLASSES>& samples,
+                                        const array<observation, CLASSES>& sampleMeans) {
+	array<CovMatrix, CLASSES> vars;
+
+	for (unsigned i = 0; i < CLASSES; i++) { vars[i] = sampleVariance(samples[i], sampleMeans[i]); }
+
+	return vars;
+}
+
 #pragma region Discriminant functions
 double discriminateCase1(const observation& obs, const Vec<CLASSES>& mu, const CovMatrix& varInverse, double logVarDet,
                          double logPrior) {
@@ -167,13 +192,13 @@ unsigned detectCase(const array<CovMatrix, CLASSES>& vars) {
 	// Default case is 3, since it covers all other cases as well
 	unsigned discriminantCase = 3;
 
-	// If all the covariance matrices are equal, then we're in case 2
-	if (std::equal(vars.cbegin() + 1, vars.cend(), vars.cbegin())) {
+	// If all the covariance matrices are (approximately) equal, then we're in case 2
+	if (std::equal(vars.cbegin() + 1, vars.cend(), vars.cbegin(),
+	               [](const CovMatrix& mat1, const CovMatrix& mat2) { return mat1.isApprox(mat2); })) {
 		discriminantCase = 2;
 
-		// If the first covariance matrix is a scalar matrix (diagonal and all
-		// elements on the diagonal are the same number), then we're in case 1
-		if (vars[0].isDiagonal() && (vars[0].diagonal().array() == vars[0](0, 0)).all()) { discriminantCase = 1; }
+		// If the first covariance matrix is a scalar matrix (scalar times the identity), then we're in case 1
+		if (vars[0].isApprox(vars[0](0, 0) * CovMatrix::Identity())) { discriminantCase = 1; }
 	}
 
 	return discriminantCase;

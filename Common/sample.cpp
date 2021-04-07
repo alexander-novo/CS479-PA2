@@ -54,3 +54,26 @@ std::string dataSetName(DataSet set) {
 			return "Undefined"s;
 	}
 }
+
+observation sampleMean(const sample& sample) {
+	observation mean  = observation::Zero();
+	double correction = 1.0 / sample.size();
+
+#pragma omp parallel for reduction(+ : mean)
+	for (unsigned i = 0; i < sample.size(); i++) { mean += correction * sample[i]; }
+
+	return mean;
+}
+
+CovMatrix sampleVariance(const sample& sample, const observation& sampleMean) {
+	CovMatrix var     = CovMatrix::Zero();
+	double correction = 1.0 / (sample.size() - 1);
+
+#pragma omp parallel for reduction(+ : var)
+	for (unsigned i = 0; i < sample.size(); i++) {
+		observation temp = (sample[i] - sampleMean);
+		var += temp * temp.transpose();
+	}
+
+	return correction * var;
+}

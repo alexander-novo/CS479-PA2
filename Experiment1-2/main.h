@@ -23,6 +23,9 @@ struct Arguments {
 	std::ofstream plotFiles[CLASSES], misclassPlotFiles[CLASSES], boundaryParamsFile, pdfPlotFile, errorBoundFile;
 };
 
+array<observation, CLASSES> getSampleMeans(const array<sample, CLASSES>& samples);
+array<CovMatrix, CLASSES> getSampleVars(const array<sample, CLASSES>& samples,
+                                        const array<observation, CLASSES>& sampleMeans);
 double discriminateCase1(const observation& obs, const Vec<CLASSES>& mu, const CovMatrix& varInverse, double logVarDet,
                          double logPrior);
 double discriminateCase2(const observation& obs, const Vec<CLASSES>& mu, const CovMatrix& varInverse, double logVarDet,

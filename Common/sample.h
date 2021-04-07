@@ -9,6 +9,9 @@ using CovMatrix   = Matrix<double, DIM, DIM>;
 using sample      = std::vector<observation, aligned_allocator<observation>>;
 using std::array;
 
+#pragma omp declare reduction(+ : observation : omp_out = omp_out + omp_in) initializer(omp_priv(omp_orig))
+#pragma omp declare reduction(+ : CovMatrix : omp_out = omp_out + omp_in) initializer(omp_priv(omp_orig))
+
 // The data sets from the assignment
 enum DataSet { A, B };
 
@@ -62,16 +65,7 @@ std::string dataSetName(DataSet set);
  * @param sample   The sample to calculate from.
  * @return Vec<N>  The sample mean.
  */
-template <unsigned N>
-Vec<N> sampleMean(const std::vector<Vec<N>, aligned_allocator<Vec<N>>>& sample) {
-	Vec<N> mean       = 0;
-	double correction = 1.0 / sample.size();
-
-#pragma omp parallel for reduction(+ : mean)
-	for (unsigned i = 0; i < sample.size(); i++) { mean += correction * sample[i]; }
-
-	return mean;
-}
+observation sampleMean(const sample& sample);
 
 /**
  * @brief Calculate the sample variance from a sample. Uses Bessel's correction for
@@ -83,16 +77,4 @@ Vec<N> sampleMean(const std::vector<Vec<N>, aligned_allocator<Vec<N>>>& sample) 
  *                    See sampleMean(sample).
  * @return            The sample variance.
  */
-template <unsigned N>
-Vec<N> sampleVariance(const std::vector<Vec<N>, aligned_allocator<Vec<N>>>& sample, const Vec<N>& sampleMean) {
-	Vec<N> var        = 0;
-	double correction = 1.0 / (sample.size() - 1);
-
-#pragma omp parallel for reduction(+ : var)
-	for (unsigned i = 0; i < sample.size(); i++) {
-		Vec<N> temp = (sample[i] - sampleMean);
-		var += correction * temp * temp;
-	}
-
-	return var;
-}
+CovMatrix sampleVariance(const sample& sample, const observation& sampleMean);
