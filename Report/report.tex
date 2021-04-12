@@ -1,6 +1,7 @@
 \documentclass[headings=optiontoheadandtoc,listof=totoc,parskip=full]{scrartcl}
 
 \usepackage[tbtags]{amsmath,mathtools}
+\usepackage{amssymb}
 \usepackage{enumitem}
 \usepackage[margin=.75in]{geometry}
 \usepackage[headsepline]{scrlayer-scrpage}
@@ -33,6 +34,7 @@
 	numbers=none
 }
 
+\DeclareMathOperator*{\argmax}{arg\,max}
 \DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
 
 \pagestyle{scrheadings}
@@ -58,9 +60,55 @@
 
 \subsection{Theory}
 
+\subsubsection{Estimating the parameters of a multivariate Gaussian distribution}
+\label{sec:theory-estimators}
+
+In practice, we do not usually know the exact parameters to the distributions of features that we are observing, so we must estimate them. One intuitively good way to estimate the parameters to a random variable $X$ given a sample $X_1, X_2, \dots, X_n$ is to choose the parameters $\theta$ that maximize the likelihood function
+\begin{equation}
+	L_n(\theta) = \prod_{i = 1}^n f_X(X_i; \vec \theta),
+\end{equation}
+where $f_X(X_i; \theta)$ is the density function evaluated with the given parameters $\theta$. A $\hat \theta$ that maximizes the likelihood function, i.e.
+\[
+	\hat \theta = \argmax_\theta L_n(\theta)
+\]
+is called the ``maximum likelihood estimator''. This is an intuitively good estimator, since our only information that we have is the sample we observed, so we have have evidence that the likelihood of it happening is high - especially if $n$ is large.
+
+The maximum likelihood estimators for a multivariate Gaussian-distributed sample $\vec X_1, \vec X_2, \dots, \vec X_n \sim \mathcal N(\vec \mu, \Sigma)$ are
+\begin{align*}
+	\hat \mu &= \frac{1}{n} \sum_{i = 1}^n \vec X_i,\\
+	\hat \Sigma &= \frac{1}{n} \sum_{i = 1}^n (\vec X_i - \hat \mu)(\vec X_i - \hat \mu)^\top,
+\end{align*}
+known as the sample mean and sample covariance, respectively.
+
+Estimators, as functions of random variables, are themselves random variables. We can analyse the properties of these random variables to see, for instance, what the expected values are:
+\begin{align*}
+	\mathbb{E}[\hat \mu] &= \mathbb{E} \qty[\frac{1}{n} \sum_{i = 1}^n \vec X_i]\\
+		&= \frac{1}{n}\sum_{i = 1}^n \mathbb{E} \qty[\vec X_i]\\
+		&= \frac{1}{n}\sum_{i = 1}^n \mu\\
+		&= \mu,\\
+	\mathbb{E}[\hat \Sigma] &= \mathbb{E} \qty[\frac{1}{n} \sum_{i = 1}^n (\vec X_i - \hat \mu)(\vec X_i - \hat \mu)^\top]\\
+		&= \mathbb{E} \qty[\frac{1}{n} \sum_{i = 1}^n \qty[((\vec X_i - \vec \mu) - (\hat \mu - \vec \mu))((\vec X_i - \vec \mu)^\top - (\hat \mu - \vec \mu)^\top)]]\\
+		&= \mathbb{E} \qty[\frac{1}{n} \sum_{i = 1}^n(\vec X_i - \vec \mu)(\vec X_i - \vec \mu)^\top - \qty(\frac{2}{n} \sum_{i = 1}^n(\vec X_i - \vec \mu))(\hat \mu - \vec \mu)^\top + (\hat \mu - \vec \mu)(\hat \mu - \vec \mu)^\top \frac{1}{n} \sum_{i = 1}^n 1]\\
+		&= \mathbb{E} \qty[\frac{1}{n} \sum_{i = 1}^n(\vec X_i - \vec \mu)(\vec X_i - \vec \mu)^\top - 2(\hat \mu - \vec \mu)(\hat \mu - \vec \mu)^\top + (\hat \mu - \vec \mu)(\hat \mu - \vec \mu)^\top]\\
+		&= \frac{1}{n} \sum_{i = 1}^n\mathbb{E} \qty[(\vec X_i - \vec \mu)(\vec X_i - \vec \mu)^\top] - \mathbb{E} \qty[(\hat \mu - \vec \mu)(\hat \mu - \vec \mu)^\top]\\
+		&= \frac{1}{n} \sum_{i = 1}^n Var[\vec X_i] - Var[\hat \mu]\\
+		&= \Sigma - Var \qty[\frac{1}{n} \sum_{i = 1}^n \vec X_i]\\
+		&= \Sigma - \frac{1}{n^2} \sum_{i = 1}^n Var \qty[\vec X_i]\\
+		&= \Sigma - \frac{1}{n} \Sigma\\
+		&= \frac{n - 1}{n} \Sigma.
+\end{align*}
+We say then, that the maximum likelihood estimator for the covariance matrix is biased, since the expected value of it is not the real parameter. We can modify the maximum likelihood estimator to make it unbiased by adding a correction:
+\begin{align*}
+	\hat \Sigma &= \frac{n}{n - 1} \qty(\frac{1}{n} \sum_{i = 1}^n (\vec X_i - \hat \mu)(\vec X_i - \hat \mu)^\top)\\
+		&= \frac{1}{n - 1} \sum_{i = 1}^n (\vec X_i - \hat \mu)(\vec X_i - \hat \mu)^\top.
+\end{align*}
+
+We can also analyse the variance of these estimators, and of course, a smaller variance is more desirable. We will not prove it, but it turns out that these two estimators (sample mean and adjusted sample variance) are minimum variance unbiased estimators for the Gaussian distribution, that is - there are no other unbiased estimators with less variance than these, so they are good choices of estimators.
+
 \subsection{Implementation}
 \label{sec:part-1-impl}
 
+The implementation remains largely unchanged from the previous assignment, except for the following details. After generating the full sample, a Fisher-yates shuffle is done on the first $n$ observations from the sample, where $n$ is the percent of observations chosen to use for the parameters. Then the estimators given in \cref{sec:theory-estimators} are calculated on these first $n$ observations. In this way, all of the observations are kept in place, but we can sample a smaller number of them for training purposes.
 
 \subsection{Results and Discussion}
 
@@ -85,8 +133,5 @@
 
 \subsection{Results and Discussion}
 
-\subsubsection{Data Set A}
-
-\subsubsection{Data Set B}
 
 \end{document}

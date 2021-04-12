@@ -1,4 +1,4 @@
-CXXFLAGS     = -std=c++14 -g -fopenmp -O3
+CXXFLAGS     = -std=c++14 -g -fopenmp -O3 -D_GLIBCXX_PARALLEL
 OBJDIR       = obj
 DEPDIR       = $(OBJDIR)/.deps
 # Flags which, when added to gcc/g++, will auto-generate dependency files

@@ -65,7 +65,7 @@ std::string dataSetName(DataSet set);
  * @param sample   The sample to calculate from.
  * @return Vec<N>  The sample mean.
  */
-observation sampleMean(const sample& sample);
+observation sampleMean(sample::const_iterator begin, sample::const_iterator end);
 
 /**
  * @brief Calculate the sample variance from a sample. Uses Bessel's correction for
@@ -77,4 +77,4 @@ observation sampleMean(const sample& sample);
  *                    See sampleMean(sample).
  * @return            The sample variance.
  */
-CovMatrix sampleVariance(const sample& sample, const observation& sampleMean);
+CovMatrix sampleVariance(sample::const_iterator begin, sample::const_iterator end, const observation& sampleMean);

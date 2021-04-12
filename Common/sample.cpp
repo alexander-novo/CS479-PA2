@@ -1,5 +1,7 @@
 #include "sample.h"
 
+#include <algorithm>
+
 void getSamples(DataSet set, std::array<sample, CLASSES>& samples, unsigned seed) {
 	std::array<unsigned, CLASSES> sizes    = getSizes(set);
 	std::array<observation, CLASSES> means = getMeans(set);
@@ -55,23 +57,25 @@ std::string dataSetName(DataSet set) {
 	}
 }
 
-observation sampleMean(const sample& sample) {
+observation sampleMean(sample::const_iterator begin, sample::const_iterator end) {
 	observation mean  = observation::Zero();
-	double correction = 1.0 / sample.size();
+	unsigned size     = std::distance(begin, end);
+	double correction = 1.0 / size;
 
 #pragma omp parallel for reduction(+ : mean)
-	for (unsigned i = 0; i < sample.size(); i++) { mean += correction * sample[i]; }
+	for (unsigned i = 0; i < size; i++) { mean += correction * *(begin + i); }
 
 	return mean;
 }
 
-CovMatrix sampleVariance(const sample& sample, const observation& sampleMean) {
+CovMatrix sampleVariance(sample::const_iterator begin, sample::const_iterator end, const observation& sampleMean) {
 	CovMatrix var     = CovMatrix::Zero();
-	double correction = 1.0 / (sample.size() - 1);
+	unsigned size     = std::distance(begin, end);
+	double correction = 1.0 / (size - 1);
 
 #pragma omp parallel for reduction(+ : var)
-	for (unsigned i = 0; i < sample.size(); i++) {
-		observation temp = (sample[i] - sampleMean);
+	for (unsigned i = 0; i < size; i++) {
+		observation temp = (*(begin + i) - sampleMean);
 		var += temp * temp.transpose();
 	}
 
