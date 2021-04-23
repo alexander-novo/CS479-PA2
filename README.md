@@ -1,4 +1,4 @@
-# UNR CS 479 Programming Assignment 1
+# UNR CS 479 Programming Assignment 2
 
 ## Building the assignment
 A Makefile is provided in the root directory which makes all executables, plots, and the report with the default target. If you want to just build the executables, the `exec` target can be used (`make exec`). Built executables can be found in their corresponding source folders (`Q1-Sampling/`, `Q2-Quantization/`, etc.) and each one can be run with no arguments or the `-h` switch to see a help menu which will explain all of the available options and how to run the program.
