@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
 	std::for_each(priors.begin(), priors.end(), [](double prior) { std::cout << prior << '\n'; });
 	std::cout << '\n';
 
-	calcInversesAndDets(arg.discriminantCase, vars, varInverses, varDets, !arg.pdfPlotFile.fail());
+	calcInversesAndDets(arg.discriminantCase, vars, varInverses, varDets);
 
 	// Calculate the logs of the determinants
 	std::transform(varDets.cbegin(), varDets.cend(), logVarDets.begin(), [](const double& det) { return log(det); });
@@ -69,31 +69,36 @@ int main(int argc, char** argv) {
 	for (unsigned i = 0; i < CLASSES; i++) {
 		sample& misclass = misclassifications[i];
 
-		unsigned misclassCount =
-		    classifySample(arg.discriminantCase, samples[i], i, misclassifications[i], min, max, means, varInverses,
-		                   logVarDets, logPriors, !arg.misclassPlotFiles[i].fail());
+		unsigned misclassCount = classifySample(arg.discriminantCase, samples[i], i, misclassifications[i], min, max,
+		                                        means, varInverses, logVarDets, logPriors);
 
 		std::cout << misclassCount / (double) sizes[i] << "\n";
 
 		overallMisclass += misclassCount;
 
 		if (arg.plotFiles[i]) { printPlotFile(arg.plotFiles[i], samples[i]); }
-
-		if (arg.misclassPlotFiles[i]) { printPlotFile(arg.misclassPlotFiles[i], misclassifications[i]); }
 	}
 
 	std::cout << "\nOverall misclassification rate:\n" << overallMisclass / totalSize << "\n\n";
 
-	double pdfMax = 0;
-	if (arg.pdfPlotFile) {
-		pdfMax = printPdfPlotFile(arg.pdfPlotFile, min, max, means, varInverses, varDets, priors);
-
-		// Round it so that the z tick values are not so ugly
-		pdfMax = round(pdfMax * 100) / 100;
+	if (arg.boundaryParamsFile) {
+		printParamsFile(arg.boundaryParamsFile, min, max, means, varInverses, logVarDets, logPriors);
 	}
 
-	if (arg.boundaryParamsFile) {
-		printParamsFile(arg.boundaryParamsFile, min, max, means, varInverses, logVarDets, logPriors, pdfMax);
+	if (arg.tabularDataFile) {
+		array<observation, CLASSES> realMeans = getMeans(arg.set);
+		array<CovMatrix, CLASSES> realVars    = getVars(arg.set);
+
+		arg.tabularDataFile << arg.samplePercent * 100 << "\\% & ";
+
+		for (unsigned i = 0; i < CLASSES; i++) {
+			arg.tabularDataFile << (realMeans[i] - means[i]).norm() / realMeans[i].norm() << " & ";
+		}
+		for (unsigned i = 0; i < CLASSES; i++) {
+			arg.tabularDataFile << (realVars[i] - vars[i]).norm() / realVars[i].norm() << " & ";
+		}
+
+		arg.tabularDataFile << (overallMisclass / totalSize) << "\\\\\n";
 	}
 
 	return 0;
@@ -161,16 +166,13 @@ unsigned detectCase(const array<CovMatrix, CLASSES>& vars) {
 }
 
 void calcInversesAndDets(unsigned discriminantCase, const array<CovMatrix, CLASSES>& vars,
-                         array<CovMatrix, CLASSES>& varInverses, array<double, CLASSES>& varDets, bool alwaysCalcDets) {
+                         array<CovMatrix, CLASSES>& varInverses, array<double, CLASSES>& varDets) {
 	switch (discriminantCase) {
 		case 1: {
 			// Same inverse for all classes, and it's a diagonal matrix, so inverse is easy to find.
-			// No need for determinant to discriminate, but we need it if we're plotting the pdf.
-			CovMatrix inverse = vars[0].diagonal().asDiagonal().inverse();
-
-			// The determinant of a diagonal matrix is the product of the entries on the main diagonal.
-			// But since this is a scalar matrix, the entries are all the same so it is the power of that scalar.
-			double determinant = alwaysCalcDets ? determinant = pow(vars[0](0, 0), DIM) : 1;
+			// No need for determinant to discriminate
+			CovMatrix inverse  = vars[0].diagonal().asDiagonal().inverse();
+			double determinant = 1;
 
 			std::for_each(varInverses.begin(), varInverses.end(), [&inverse](CovMatrix& inv) { inv = inverse; });
 			std::for_each(varDets.begin(), varDets.end(), [&determinant](double& det) { det = determinant; });
@@ -180,17 +182,8 @@ void calcInversesAndDets(unsigned discriminantCase, const array<CovMatrix, CLASS
 			// Same inverse for all classes, but this time it's a bit more difficult to find
 			// inverse. Covariance matrices are symmetric positive definite, so we can still find
 			// inverse quickly as long as we don't need determinant (which we don't unless we're plotting the pdf).
-			CovMatrix inverse;
-			double determinant;
-			if (!alwaysCalcDets) {
-				inverse     = vars[0].llt().solve(CovMatrix::Identity());
-				determinant = 1;
-			} else {
-				// See below why we don't use LLT decomposition in this case
-				PartialPivLU<CovMatrix> varLU = vars[0].lu();
-				inverse                       = varLU.inverse();
-				determinant                   = varLU.determinant();
-			}
+			CovMatrix inverse  = vars[0].llt().solve(CovMatrix::Identity());
+			double determinant = 1;
 
 			std::for_each(varInverses.begin(), varInverses.end(), [&inverse](CovMatrix& inv) { inv = inverse; });
 			std::for_each(varDets.begin(), varDets.end(), [&determinant](double& det) { det = determinant; });
@@ -216,7 +209,7 @@ void calcInversesAndDets(unsigned discriminantCase, const array<CovMatrix, CLASS
 unsigned classifySample(unsigned discriminantCase, const sample& samp, unsigned correctClass, sample& misclass,
                         observation& min, observation& max, const array<observation, CLASSES>& means,
                         const array<CovMatrix, CLASSES>& varInverses, const array<double, CLASSES>& logVarDets,
-                        const array<double, CLASSES>& logPriors, bool plotMisclassifications) {
+                        const array<double, CLASSES>& logPriors) {
 	unsigned misclassCount = 0;
 	auto discriminate      = discriminantFuncs[discriminantCase - 1];
 
@@ -236,8 +229,6 @@ unsigned classifySample(unsigned discriminantCase, const sample& samp, unsigned 
 			if (k == correctClass && discriminant < maxDiscriminant ||
 			    k > correctClass && discriminant > maxDiscriminant) {
 				misclassCount++;
-
-				if (plotMisclassifications) { misclass.push_back(samp[j]); }
 
 				break;
 			}
@@ -261,52 +252,9 @@ void printPlotFile(std::ofstream& plotFile, const sample& samp) {
 	}
 }
 
-double printPdfPlotFile(std::ofstream& pdfPlotFile, const observation& min, const observation& max,
-                        const array<observation, CLASSES>& means, const array<CovMatrix, CLASSES>& varInverses,
-                        const array<double, CLASSES>& varDets, const array<double, CLASSES>& priors) {
-	double pdfMax = 0;
-	array<double, CLASSES> varDetRoots;
-
-	std::transform(varDets.cbegin(), varDets.cend(), varDetRoots.begin(), [](double det) { return sqrt(det); });
-
-	pdfPlotFile << "#        x           y           z       class\n" << std::fixed << std::setprecision(7);
-#pragma omp parallel for ordered collapse(2) reduction(max : pdfMax)
-	for (unsigned x = 0; x < PDF_SAMPLES; x++) {
-		for (unsigned y = 0; y < PDF_SAMPLES; y++) {
-			double xmod = min.x() + x * (max.x() - min.x()) / PDF_SAMPLES;
-			double ymod = min.y() + y * (max.y() - min.y()) / PDF_SAMPLES;
-
-			observation vecX = {xmod, ymod};
-
-			array<double, CLASSES> densities;
-
-			for (unsigned i = 0; i < CLASSES; i++) {
-				densities[i] = gaussianDensity<DIM>(vecX, means[i], varInverses[i], varDetRoots[i]) * priors[i];
-			}
-
-			double jointDensity = std::accumulate(densities.cbegin(), densities.cend(), 0.);
-			unsigned correctClass =
-			    std::distance(densities.cbegin(), std::max_element(densities.cbegin(), densities.cend())) + 1;
-
-			pdfMax = std::max(pdfMax, jointDensity);
-
-#pragma omp ordered
-			{
-				pdfPlotFile << std::setw(10) << xmod << "  " << std::setw(10) << ymod << "  " << std::setw(10)
-				            << jointDensity << "  " << std::setw(10) << correctClass << '\n';
-
-				// gnuplot requires an extra blank line between rows on surface plots
-				if (y == PDF_SAMPLES - 1) { pdfPlotFile << '\n'; }
-			}
-		}
-	}
-
-	return pdfMax;
-}
-
 void printParamsFile(std::ofstream& boundaryParamsFile, const observation& min, const observation& max,
                      const array<observation, CLASSES>& means, const array<CovMatrix, CLASSES>& varInverses,
-                     const array<double, CLASSES>& logVarDets, const array<double, CLASSES>& logPriors, double pdfMax) {
+                     const array<double, CLASSES>& logVarDets, const array<double, CLASSES>& logPriors) {
 	array<double, (DIM * (DIM + 1)) / 2 + DIM + 1> boundaryCoeffs;
 	// Corresponds to the difference in the matrices "W_i" in the book
 	CovMatrix diffW = -1 / 2.0 * (varInverses[0] - varInverses[1]);
@@ -340,15 +288,14 @@ void printParamsFile(std::ofstream& boundaryParamsFile, const observation& min, 
 	boundaryParamsFile << std::setw(10) << "xmin"
 	                   << "  " << std::setw(10) << "xmax"
 	                   << "  " << std::setw(10) << "ymin"
-	                   << "  " << std::setw(10) << "ymax"
-	                   << "  " << std::setw(10) << "zmax" << '\n'
+	                   << "  " << std::setw(10) << "ymax" << '\n'
 	                   << std::fixed << std::setprecision(7);
 
 	// Print parameters, starting with coefficients calculated above
 	for (double coeff : boundaryCoeffs) { boundaryParamsFile << std::setw(10) << coeff << "  "; }
 	// Then misc. parameters
 	boundaryParamsFile << std::setw(10) << min[0] << "  " << std::setw(10) << max[0] << "  " << std::setw(10) << min[1]
-	                   << "  " << std::setw(10) << max[1] << "  " << std::setw(10) << pdfMax;
+	                   << "  " << std::setw(10) << max[1];
 }
 
 bool verifyArguments(int argc, char** argv, Arguments& arg, int& err) {
@@ -378,7 +325,6 @@ bool verifyArguments(int argc, char** argv, Arguments& arg, int& err) {
 
 	using namespace std::string_literals;
 	std::regex samplePlotSwitch("-ps([1-"s + std::to_string(CLASSES) + "])"s);
-	std::regex misclassPlotSwitch("-pm([1-"s + std::to_string(CLASSES) + "])"s);
 	std::cmatch match;
 
 	// Optional Arguments
@@ -400,8 +346,7 @@ bool verifyArguments(int argc, char** argv, Arguments& arg, int& err) {
 			}
 
 			i++;
-		}
-		if (!strcmp(argv[i], "-ps")) {
+		} else if (!strcmp(argv[i], "-ps")) {
 			if (i + 1 >= argc) {
 				std::cout << "Missing training seed value.\n\n";
 				err = 1;
@@ -431,41 +376,6 @@ bool verifyArguments(int argc, char** argv, Arguments& arg, int& err) {
 
 			arg.plotFiles[classNum].open(argv[i + 1]);
 			if (!arg.plotFiles[classNum]) {
-				std::cout << "Could not open file \"" << argv[i + 1] << "\".\n";
-				err = 2;
-				return false;
-			}
-
-			i++;
-		} else if (std::regex_match(argv[i], match, misclassPlotSwitch)) {
-			char* end;
-			unsigned classNum = strtol(match[1].str().c_str(), &end, 10) - 1;
-
-			if (i + 1 >= argc) {
-				std::cout << "Missing misclassifications of sample " << classNum << " plot file.\n\n";
-				err = 1;
-				printHelp();
-				return false;
-			}
-
-			arg.misclassPlotFiles[classNum].open(argv[i + 1]);
-			if (!arg.misclassPlotFiles[classNum]) {
-				std::cout << "Could not open file \"" << argv[i + 1] << "\".\n";
-				err = 2;
-				return false;
-			}
-
-			i++;
-		} else if (!strcmp(argv[i], "-pdf")) {
-			if (i + 1 >= argc) {
-				std::cout << "Missing probability density function file.\n\n";
-				err = 1;
-				printHelp();
-				return false;
-			}
-
-			arg.pdfPlotFile.open(argv[i + 1]);
-			if (!arg.pdfPlotFile) {
 				std::cout << "Could not open file \"" << argv[i + 1] << "\".\n";
 				err = 2;
 				return false;
@@ -530,6 +440,22 @@ bool verifyArguments(int argc, char** argv, Arguments& arg, int& err) {
 			}
 
 			i++;
+		} else if (!strcmp(argv[i], "-t")) {
+			if (i + 1 >= argc) {
+				std::cout << "Missing tabular data file.\n\n";
+				err = 1;
+				printHelp();
+				return false;
+			}
+
+			arg.tabularDataFile.open(argv[i + 1], std::ios_base::in | std::ios_base::app);
+			if (!arg.tabularDataFile) {
+				std::cout << "Could not open file \"" << argv[i + 1] << "\".\n";
+				err = 2;
+				return false;
+			}
+
+			i++;
 		} else {
 			std::cout << "Unrecognised argument \"" << argv[i] << "\".\n";
 			printHelp();
@@ -542,8 +468,8 @@ bool verifyArguments(int argc, char** argv, Arguments& arg, int& err) {
 
 void printHelp() {
 	Arguments arg;
-	std::cout << "Usage: classify-bayes <data set> [options]                                   (1)\n"
-	          << "   or: classify-bayes -h                                                     (2)\n\n"
+	std::cout << "Usage: classify <data set> [options]                                         (1)\n"
+	          << "   or: classify -h                                                           (2)\n\n"
 	          << "(1) Run a Bayes classifier on a specific data set.\n"
 	          << "    Data sets available are 'A' and 'B'.\n"
 	          << "(2) Print this help menu.\n\n"
@@ -554,12 +480,10 @@ void printHelp() {
 	          << "               N can be 1 to " << CLASSES << ".\n"
 	          << "  -pmN <file>  Print all misclassified observations from sample N to a file.\n"
 	          << "               N can be 1 to " << CLASSES << ".\n"
-	          << "  -pdf <file>  Print a graph of the probability density function to a file.\n"
-	          << "               There will be an extra column which shows which class is more\n"
-	          << "               likely at that point. Will also allow correct calculation of\n"
-	          << "               zmax in the -pdb file.\n"
 	          << "  -pdb <file>  Print the parameters of the decision boundary, along with\n"
 	          << "               other miscellaneous parameters needed for plotting.\n"
+	          << "  -pcb <file>  Print the parameters of the CORRECT (knowing the original\n"
+	          << "               parameters) decision boundary.\n"
 	          << "  -c   <case>  Override which discriminant case is to be used.\n"
 	          << "               <case> can be 1-3. Higher numbers are more computationally\n"
 	          << "               expensive, but are correct more of the time.\n"
@@ -569,5 +493,9 @@ void printHelp() {
 	          << "               Defaults to " << (arg.samplePercent * 100) << "%.\n"
 	          << "  -ps  <seed>  Set the seed to use when choosing samples to consider for\n"
 	          << "               generating the distribution parameters.\n"
-	          << "               Defaults to " << arg.trainingSeed << ".\n";
+	          << "               Defaults to " << arg.trainingSeed << ".\n"
+	          << "  -t   <file>  Print tabulated data about the performance of the classifier\n"
+	          << "               to a file to be used in LaTeX. Only prints one row of the\n"
+	          << "               table, appended to the end of the file for use in comparing\n"
+	          << "               other parameters.";
 }

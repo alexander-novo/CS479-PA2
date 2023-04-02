@@ -16,6 +16,9 @@
 \usepackage[format=hang, justification=justified]{caption}
 \usepackage{subcaption}
 \usepackage{listings}
+\usepackage{booktabs}
+\usepackage{catchfile}
+\usepackage{makecell}
 \usepackage{xcolor}
 
 \usepackage{cleveref} % Needs to be loaded last
@@ -68,19 +71,21 @@ In practice, we do not usually know the exact parameters to the distributions of
 	L_n(\theta) = \prod_{i = 1}^n f_X(X_i; \vec \theta),
 \end{equation}
 where $f_X(X_i; \theta)$ is the density function evaluated with the given parameters $\theta$. A $\hat \theta$ that maximizes the likelihood function, i.e.
-\[
+\begin{equation}
 	\hat \theta = \argmax_\theta L_n(\theta)
-\]
+\end{equation}
 is called the ``maximum likelihood estimator''. This is an intuitively good estimator, since our only information that we have is the sample we observed, so we have have evidence that the likelihood of it happening is high - especially if $n$ is large.
 
 The maximum likelihood estimators for a multivariate Gaussian-distributed sample $\vec X_1, \vec X_2, \dots, \vec X_n \sim \mathcal N(\vec \mu, \Sigma)$ are
-\begin{align*}
+\begin{align}
 	\hat \mu &= \frac{1}{n} \sum_{i = 1}^n \vec X_i,\\
 	\hat \Sigma &= \frac{1}{n} \sum_{i = 1}^n (\vec X_i - \hat \mu)(\vec X_i - \hat \mu)^\top,
-\end{align*}
+\end{align}
 known as the sample mean and sample covariance, respectively.
 
 Estimators, as functions of random variables, are themselves random variables. We can analyse the properties of these random variables to see, for instance, what the expected values are:
+\begingroup
+\allowdisplaybreaks
 \begin{align*}
 	\mathbb{E}[\hat \mu] &= \mathbb{E} \qty[\frac{1}{n} \sum_{i = 1}^n \vec X_i]\\
 		&= \frac{1}{n}\sum_{i = 1}^n \mathbb{E} \qty[\vec X_i]\\
@@ -97,26 +102,84 @@ Estimators, as functions of random variables, are themselves random variables. W
 		&= \Sigma - \frac{1}{n} \Sigma\\
 		&= \frac{n - 1}{n} \Sigma.
 \end{align*}
+\endgroup
 We say then, that the maximum likelihood estimator for the covariance matrix is biased, since the expected value of it is not the real parameter. We can modify the maximum likelihood estimator to make it unbiased by adding a correction:
-\begin{align*}
-	\hat \Sigma &= \frac{n}{n - 1} \qty(\frac{1}{n} \sum_{i = 1}^n (\vec X_i - \hat \mu)(\vec X_i - \hat \mu)^\top)\\
-		&= \frac{1}{n - 1} \sum_{i = 1}^n (\vec X_i - \hat \mu)(\vec X_i - \hat \mu)^\top.
-\end{align*}
+\begin{equation}
+	\begin{split}
+		\hat \Sigma &= \frac{n}{n - 1} \qty(\frac{1}{n} \sum_{i = 1}^n (\vec X_i - \hat \mu)(\vec X_i - \hat \mu)^\top)\\
+			&= \frac{1}{n - 1} \sum_{i = 1}^n (\vec X_i - \hat \mu)(\vec X_i - \hat \mu)^\top.
+	\end{split}
+\end{equation}
+
 
 We can also analyse the variance of these estimators, and of course, a smaller variance is more desirable. We will not prove it, but it turns out that these two estimators (sample mean and adjusted sample variance) are minimum variance unbiased estimators for the Gaussian distribution, that is - there are no other unbiased estimators with less variance than these, so they are good choices of estimators.
 
 \subsection{Implementation}
 \label{sec:part-1-impl}
 
-The implementation remains largely unchanged from the previous assignment, except for the following details. After generating the full sample, a Fisher-yates shuffle is done on the first $n$ observations from the sample, where $n$ is the percent of observations chosen to use for the parameters. Then the estimators given in \cref{sec:theory-estimators} are calculated on these first $n$ observations. In this way, all of the observations are kept in place, but we can sample a smaller number of them for training purposes.
+The implementation remains largely unchanged from the previous assignment, except for the following details. After generating the full sample, a Fisher-Yates shuffle is done on the first $n$ observations from the sample, where $n$ is the percent of observations chosen to use for the parameters. Then the estimators given in \cref{sec:theory-estimators} are calculated on these first $n$ observations. In this way, all of the observations are kept in place, but we can sample a smaller number of them for training purposes. The discriminant case is calculated on these estimators just as before but using the Eigen \texttt{isApprox()} function to tell if two matrices are approximately equal (using some precision). Case 2 was selected if all matrices were approximately equal and Case 1 was selected if the first matrix (and therefore all matrices) was additionally approximately equal to the identity matrix times its diagonal entry.
 
 \subsection{Results and Discussion}
 
 \subsubsection{Data Set A}
 \label{sec:results-bayes-a}
 
+A table of relative errors of the estimators and misclassifications rates based on the percentage of data used for training can be found in \cref{tab:set-a}. Relative errors are computed against the known values, and a smaller error means the estimator was closer to the true value. As can be seen, the relative error and misclassification rate decrease as we increase the amount of data used to train. A comparison of decision boundaries can be found in \cref{fig:set-a}. The decision boundary generated when using only .01\% of the data is distinctly quadric in form, while the boundary generated when using 100\% of the data looks very linear (despite the algorithm selecting case 3) and similar to the known decision boundary. Despite the .01\% decision boundary not deviating too much from the 100\% decision boundary, this account for almost double the misclassification rate.
+
+\begin{table}[H]
+	\centering
+	\CatchFileDef{\mytable}{../out/A-table.tex}{}
+	\resizebox{.95\textwidth}{!}{
+		\begin{tabular}{rllllc} 
+			\toprule
+			\makecell{\% Of\\Data Used} & \makecell{Class 1 Mean\\Relative Error} & \makecell{Class 2 Mean\\Relative Error} & \makecell{Class 1 Covariance\\Relative Error} & \makecell{Class 2 Covariance\\Relative Error} & \makecell{Misclassification\\Rate}\\
+			\midrule
+			\mytable
+			\bottomrule
+		\end{tabular}
+	}
+	\captionsetup{width=.9\textwidth}
+	\caption{A comparison of errors classifying data set A based on how much of the generated sample was used to train the estimators. Relative error in the matrices was calculated using the Frobenius norm.}
+	\label{tab:set-a}
+\end{table}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{../out/sample-plot-A.png}
+	\captionsetup{width=.8\textwidth}
+	\caption{A comparison of decision boundaries on Data Set A based on how much of the original data was used to train the estimators.}
+	\label{fig:set-a}
+\end{figure}
+
 
 \subsubsection{Data Set B}
+
+A table of relative errors of the estimators and misclassifications rates based on the percentage of data used for training can be found in \cref{tab:set-b}. As can be seen, the relative error and misclassification rate decrease as we increase the amount of data used to train. Interestingly, the jump from 10\% data to 100\% actually increases misclassification rate. A comparison of decision boundaries can be found in \cref{fig:set-b}. The decision boundary generated when using only .01\% of the data is wildly different than the 100\% boundary, which looks very similar to the known value again. This is probably due to the relatively more complex $\Sigma_2$ in Data Set B compared to Data Set A.
+
+\begin{table}[H]
+	\centering
+	\CatchFileDef{\mytable}{../out/B-table.tex}{}
+	\resizebox{.95\textwidth}{!}{
+		\begin{tabular}{rllllc} 
+			\toprule
+			\makecell{\% Of\\Data Used} & \makecell{Class 1 Mean\\Relative Error} & \makecell{Class 2 Mean\\Relative Error} & \makecell{Class 1 Covariance\\Relative Error} & \makecell{Class 2 Covariance\\Relative Error} & \makecell{Misclassification\\Rate}\\
+			\midrule
+			\mytable
+			\bottomrule
+		\end{tabular}
+	}
+	\captionsetup{width=.9\textwidth}
+	\caption{A comparison of errors classifying data set B based on how much of the generated sample was used to train the estimators. Relative error in the matrices was calculated using the Frobenius norm.}
+	\label{tab:set-b}
+\end{table}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=.95\textwidth]{../out/sample-plot-B.png}
+	\captionsetup{width=.8\textwidth}
+	\caption{A comparison of decision boundaries on Data Set B based on how much of the original data was used to train the estimators.}
+	\label{fig:set-b}
+\end{figure}
 
 
 %%%%%%%%%%%%%%%%%%%%%%
@@ -126,12 +189,185 @@ The implementation remains largely unchanged from the previous assignment, excep
 \subsection{Theory}
 \label{sec:part-3-theory}
 
+The final part of the project tackled the problem of skin color recognition. One common approach that was implemented in this section of the project was using the unique Gaussian-like nature of the space of colors given off by human skin to build a classifier. This was notably done in a paper written by Jie Yang and Alex Waibel [Yang96 ``A Real-time Face Tracker''] for the purpose of building a face tracker. In the rest of this report, we use the terms skin color and facial color interchangeably.
+
+Each individual pixel begins as a triple of RGB values. However, this isn't necessarily the best way to represent facial color information as it also encodes brightness, and is higher dimensional than what is needed. Thus, we first
+convert the pixel values to the chromatic color space (normalizing the rgb data by removing brightness) via the following transformation:
+
+\begin{equation}
+    r = \frac{R}{R + G + B} 
+\end{equation}
+
+\begin{equation}
+    g = \frac{G}{R + G + B}
+\end{equation}
+
+The color blue is redundant as $r + g + b = 1$ due to normalization, and we have successfully removed a dimension from our
+data-set. The paper also notes that the skin-color distributions of different people do not significantly change between different lighting conditions or between races (in the latter case, color \emph{intensity} varies, but not the actual colors).
+
+We can then say that the distribution of skin-colors follows a Gaussian model, $\mathcal N(\mu,\Sigma)$, where $\mu$ is the sample mean, achieved by stacking $\overline{r},\overline{g}$:
+
+\begin{align}
+    \overline{r} &= \frac{1}{N}\sum_{i=1}^{N}r_i, \nonumber\\
+    \overline{g} &= \frac{1}{N}\sum_{i=1}^{N}g_i, \nonumber\\
+    \hat\mu &= \begin{bmatrix}
+      \overline{r} \\
+      \overline{g}
+    \end{bmatrix},
+    \intertext{and $\Sigma$:}
+    \hat\Sigma &=
+    \begin{bmatrix}
+        s_{rr}^2 & s_{rg}^2  \\
+        s_{gr}^2 & s_{gg}^2
+    \end{bmatrix},
+\end{align}
+
+where $s^2$ is the adjusted sample covariance.
+
+We can initialize our Gaussian parameters by taking in an image containing a face/set of faces and a corresponding image containing labels for said faces. All the pixels which identify as faces are then used to create this model via their sample mean/co-variances.
+
+Given a sample $y_i$ and dimensionality $n=2$, we can then compute the likelihood of finding this random variable inside our estimated Gaussian distribution via Bayes Rule, which leads us to the pdf of a multivariate Gaussian distribution:
+
+\begin{equation}
+     f(y_{i}|\mu,\Sigma) = \frac{1}{\sqrt{(2\pi)^{n}|\Sigma|}}\exp(-\frac{1}{2}(y_{i}-\mu)^\top\Sigma^{-1}(y_{i}-\mu))
+\end{equation}
+
+with a normalization constant
+
+\begin{equation}
+     c = \frac{1}{\sqrt{(2\pi)^{n}|\Sigma|}} \label{eq:normalize-constant}
+\end{equation}
+
+% \begin{eqnarray}
+% f(y_{i}|\mu,\Sigma) & =\nonumber \\
+%  & = & f((y_{i1},y_{i2},...,y_{in})'\,|\,\mu=(\mu_{1},...,\mu_{n})',\Sigma=\left[\begin{array}{ccc}
+% \sigma_{1}^{2} &  & \sigma_{1n}\\
+%  & \ddots\\
+% \sigma_{n1} &  & \sigma_{n}^{2}
+% \end{array}\right])\nonumber \\
+%  & & =\frac{1}{\sqrt{(2\pi)^{n}|\Sigma|}}exp(-\frac{1}{2}(y_{i}-\mu)'\Sigma^{-1}(y_{i}-\mu))
+% \end{eqnarray}
+
+If this likelihood is greater than some given threshold value, then we classify that pixel as belonging to a face. The exact threshold value is a hyper-parameter, and in our case we want to set it according to an ROC curve. Higher threshold values lead to a ``stricter'' classifier and False Negatives increase, and lower threshold values lead to a ``looser'' classifier and False Positives increase. The point of intersection where FP = FN is our desired threshold value and is called the Equal Error Rate (EER).
 
 \subsection{Implementation}
 \label{sec:part-3-impl}
 
+To begin, our code must first read/parse ppm files to act as the training set and labels for creating our Gaussian. PPM stands for ``Portable Pixel Map'' and while it is a fairly inconvenient and large file-type, its simplicity and lack of compression makes it a great candidate for high-accuracy programming.
 
+The images are parsed using the popular computer vision library OpenCV. The project utilized very rudimentary functions to read/write files (\texttt{opencv::imread} and \texttt{opencv::imwrite}) and data structures to store pixel values before being converted into RGB/Chromatic color objects (\texttt{opencv::Mat}).
+
+We can also experiment with what happens when we use the $\mathbf{YC_bC_r}$ color space, whose transformation from the RGB space is defined as:
+
+\begin{equation}
+\begin{aligned}
+    Y &= 0.299R + 0.587G + 0.114B \\
+    C_b &= -0.169R - 0.332G + 0.500B \\
+    C_r &= 0.500R - 0.419G - 0.081B \\
+\end{aligned}
+\end{equation}
+
+It is worth noting that since our code is vectorized by the compiler when compiled in Release mode, the building of the model and computation on the test data is completed within a few seconds. 
+
+\newpage
 \subsection{Results and Discussion}
+The ROC plot using the chromatic color space can be found in \cref{fig:chr_roc_1}. 
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.99\columnwidth]{fig/chr_roc_1.eps}
+\caption{ROC curve for the chromatic color space classifier.}
+\label{fig:chr_roc_1}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+The EER occurs at a threshold of 135 and so we choose this as our threshold value for future classifications. The original and classified training image corresponding to this value can be seen in \cref{fig:chr_train_classified_image}.
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=.47\textwidth]{fig/original_train_image.png}
+    \includegraphics[width=.47\textwidth]{fig/chr_train_classified.png}
+    \caption{Training image classified in chromatic color space by the obtained threshold of 135}
+    \label{fig:chr_train_classified_image}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+And its performance on the other test images at this threshold can be seen in \cref{fig:chr_classified_image}.
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\columnwidth]{fig/original_test_image.png}
+    \includegraphics[width=0.95\columnwidth]{fig/chr_coloered_image.png}
+    \caption{Testing images classified in chromatic color space by the obtained threshold of 135}
+    \label{fig:chr_classified_image}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+The classifier can reliably detect facial features with very limited misclassification with respect to clothing. However, other skin-colored areas are also classified as faces, such as hand/arm skin, and beige-red colored objects in the environment. Still, the results are impressive considering the relative simplicity of our model and minimal computational costs, and is very well suited to simple facial-recognition tasks such as those found on IoT devices.
+
+The ROC plot using the $\mathbf{YC_bC_r}$ color space can be seen below in \cref{fig:ycbcr_roc_1}.
+
+Comparing classification using the  $\mathbf{YC_bC_r}$ color space, we observe a handful of differences compared to the chromatic color space. Most notably, the EER is encountered at a much smaller threshold value due to the normalizing constant of the Gaussian being much lower than that of the chromatic color space, given by \cref{eq:normalize-constant} above.
+
+Moreover, in the $\mathbf{YC_bC_r}$ color space, we can see that environmental noise is significantly reduced compared to the chromatic color space; note that the beams in \cref{fig:chr_train_classified_image} are misclassified, but not in \cref{fig:ycbcr_colored_image}, and that more of the face is captured in \cref{fig:ycbcr_colored_image}.
+
+Using this new threshold of 0.002144315, we can see the original image and its classified counterpart in \cref{fig:ycbcr_train_classified_image}.
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.99\columnwidth]{fig/ycbcr_roc_1.eps}
+    \caption{ROC curve for the obtained Gaussian with the two test images}
+    \label{fig:ycbcr_roc_1}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=.47\textwidth]{fig/original_train_image.png}
+    \includegraphics[width=.47\columnwidth]{fig/ycbcr_train_classified_image.png}
+    \caption{Training image classified in $\mathbf{YC_bC_r}$ color space by the obtained threshold of 0.002144315}
+    \label{fig:ycbcr_train_classified_image}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+And the test images are classified by this new Gaussian in Figure \ref{fig:ycbcr_colored_image}.
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=.95\textwidth]{fig/original_test_image.png}
+    \includegraphics[width=.95\textwidth]{fig/ycbcr_colored_image.png}
+    \caption{Testing images classified in $\mathbf{YC_bC_r}$ color space by the obtained threshold of 0.002144315}
+    \label{fig:ycbcr_colored_image}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+In $\mathbf{YC_bC_r}$, the lightness information encoded in the RGB data is linearly separated and transformed into a luma signal and two chrominance signals. Separating this information also has the added benefit of removing most of the correlation between the input channels, therefore providing a smaller normalizing constant and better classification while still only being 2-dimensional.
+
+Plotting the false acceptance rate v.s. the false rejection rate for both color spaces allows us to compare the classifiers more objectively. This can be found in \cref{fig:roc-compare}.
+
+% TODO: ROC comparison curve goes here
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=.95\textwidth]{out/roc}
+    \caption{A comparison of error rates between the two classifiers.}
+    \label{fig:roc-compare}
+\end{figure}
+
+As can be seen, the area under the $\mathbf{YC_bC_r}$ ROC curve is much less, and therefore it is a much better classifier than the chromatic classifier.
 
 
 \end{document}

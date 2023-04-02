@@ -22,7 +22,7 @@ struct Arguments {
 	unsigned trainingSeed     = 1;
 	unsigned discriminantCase = 0;
 	double samplePercent      = 1;
-	std::ofstream plotFiles[CLASSES], misclassPlotFiles[CLASSES], boundaryParamsFile, pdfPlotFile;
+	std::ofstream plotFiles[CLASSES], boundaryParamsFile, tabularDataFile;
 };
 
 array<observation, CLASSES> getSampleMeans(const array<sample, CLASSES>& samples,
@@ -38,19 +38,15 @@ double discriminateCase3(const observation& obs, const Vec<CLASSES>& mu, const C
                          double logPrior);
 unsigned detectCase(const array<CovMatrix, CLASSES>& vars);
 void calcInversesAndDets(unsigned discriminantCase, const array<CovMatrix, CLASSES>& vars,
-                         array<CovMatrix, CLASSES>& varInverses, array<double, CLASSES>& varDets,
-                         bool alwaysCalcDets = false);
+                         array<CovMatrix, CLASSES>& varInverses, array<double, CLASSES>& varDets);
 unsigned classifySample(unsigned discriminantCase, const sample& samp, unsigned correctClass, sample& misclass,
                         observation& min, observation& max, const array<observation, CLASSES>& means,
                         const array<CovMatrix, CLASSES>& varInverses, const array<double, CLASSES>& logVarDets,
-                        const array<double, CLASSES>& logPriors, bool plotMisclassifications = false);
+                        const array<double, CLASSES>& logPriors);
 void printPlotFile(std::ofstream& plotFile, const sample& samp);
-double printPdfPlotFile(std::ofstream& pdfPlotFile, const observation& min, const observation& max,
-                        const array<observation, CLASSES>& means, const array<CovMatrix, CLASSES>& varInverses,
-                        const array<double, CLASSES>& varDets, const array<double, CLASSES>& priors);
 void printParamsFile(std::ofstream& boundaryParamsFile, const observation& min, const observation& max,
                      const array<observation, CLASSES>& means, const array<CovMatrix, CLASSES>& varInverses,
-                     const array<double, CLASSES>& logVarDets, const array<double, CLASSES>& logPriors, double pdfMax);
+                     const array<double, CLASSES>& logVarDets, const array<double, CLASSES>& logPriors);
 bool verifyArguments(int argc, char** argv, Arguments& arg, int& err);
 void printHelp();
 

@@ -23,6 +23,19 @@ set yrange [ymin:ymax]
 set table $ContourTable
 splot f(x, y)
 
+paramNames = system('head -1 '.paramFile2)
+paramCount = words(paramNames)
+paramLine = system('head -2 '.paramFile2.' | tail -1')
+
+do for [i = 1:paramCount] {
+	eval(word(paramNames, i).' = '.word(paramLine, i))
+}
+
+set xrange [xmin:xmax]
+set yrange [ymin:ymax]
+set table $ContourTable2
+splot f(x, y)
+
 unset table
 unset contour
 
@@ -53,6 +66,7 @@ if(exists("raw")) {
 
 plot sample1 u 1:2 w circles lc rgb '#7570b3' notitle,\
      sample2 u 1:2 w circles lc rgb '#1b9e77' notitle,\
-	 $ContourTable w lines lw 6 lc rgb 'black' title "Decision Boundary",\
+	 $ContourTable w lines lw 6 lc rgb 'red' title percent1."%",\
+	 $ContourTable2 w lines lw 6 lc rgb 'black' title percent2."%",\
 	 NaN w circles fill solid 1.0 noborder lc rgb '#7570b3' title "ω_1",\
 	 NaN w circles fill solid 1.0 noborder lc rgb '#1b9e77' title "ω_2"
