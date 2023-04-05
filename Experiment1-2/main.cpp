@@ -12,15 +12,27 @@ int main(int argc, char** argv) {
 	array<double, CLASSES> priors, logPriors, varDets = {}, logVarDets = {};
 	array<CovMatrix, CLASSES> varInverses;
 	array<unsigned, CLASSES> sizes = getSizes(arg.set);
-	getSamples(arg.set, samples, arg.seed);
+
+	if (arg.dataInputFile.is_open()) {
+		getSamplesFromFile(arg.dataInputFile, samples);
+	} else {
+		getSamples(arg.set, samples, arg.seed);
+	}
 
 	std::cout << "Training on " << arg.samplePercent * 100 << "% of data\n";
 	array<unsigned, CLASSES> trainingSizes;
 
-	std::transform(samples.begin(), samples.end(), trainingSizes.begin(), [&arg](sample& sample) {
-		random_unique(sample.begin(), sample.end(), sample.size() * arg.samplePercent, arg.trainingSeed);
-		return sample.size() * arg.samplePercent;
-	});
+	// Only reshuffle data if the training seed has been specifically set.
+	// This way, we can compare to other implementations.
+	if (arg.trainingSeed != Arguments::DEFAULT_TRAINING_SEED) {
+		// Randomly shuffle samples. When we pick a subsample to train on, we just pick the first n
+		// observations in each sample. So to change the subsamples, we shuffle differently.
+		// Only shuffle the first n observations from among all of the observations.
+		std::transform(samples.begin(), samples.end(), trainingSizes.begin(), [&arg](sample& sample) {
+			random_unique(sample.begin(), sample.end(), sample.size() * arg.samplePercent, arg.trainingSeed);
+			return sample.size() * arg.samplePercent;
+		});
+	}
 
 	array<observation, CLASSES> means = getSampleMeans(samples, trainingSizes);
 	array<CovMatrix, CLASSES> vars    = getSampleVars(samples, means, trainingSizes);
@@ -456,6 +468,22 @@ bool verifyArguments(int argc, char** argv, Arguments& arg, int& err) {
 			}
 
 			i++;
+		} else if (!strcmp(argv[i], "-d")) {
+			if (i + 1 >= argc) {
+				std::cout << "Missing data input file.\n\n";
+				err = 1;
+				printHelp();
+				return false;
+			}
+
+			arg.dataInputFile.open(argv[i + 1]);
+			if (!arg.dataInputFile) {
+				std::cout << "Could not open file \"" << argv[i + 1] << "\".\n";
+				err = 2;
+				return false;
+			}
+
+			i++;
 		} else {
 			std::cout << "Unrecognised argument \"" << argv[i] << "\".\n";
 			printHelp();
@@ -497,5 +525,10 @@ void printHelp() {
 	          << "  -t   <file>  Print tabulated data about the performance of the classifier\n"
 	          << "               to a file to be used in LaTeX. Only prints one row of the\n"
 	          << "               table, appended to the end of the file for use in comparing\n"
-	          << "               other parameters.";
+	          << "               other parameters.\n"
+	          << "  -d   <file>  Instead of generating new samples, load them from this file\n"
+	          << "               The file is expected to be a space-separated values file,\n"
+	          << "               where the first n values are the features of a particular\n"
+	          << "               observation, and the last value is the integer class label,\n"
+	          << "               which is 0-indexed.\n";
 }

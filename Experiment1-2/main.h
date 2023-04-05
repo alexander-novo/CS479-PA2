@@ -17,12 +17,14 @@ using Eigen::PartialPivLU;
 
 // Struct for inputting arguments from command line
 struct Arguments {
+	static const unsigned DEFAULT_TRAINING_SEED = 1;
 	DataSet set;
 	unsigned seed             = 1;
-	unsigned trainingSeed     = 1;
+	unsigned trainingSeed     = DEFAULT_TRAINING_SEED;
 	unsigned discriminantCase = 0;
 	double samplePercent      = 1;
 	std::ofstream plotFiles[CLASSES], boundaryParamsFile, tabularDataFile;
+	std::ifstream dataInputFile;
 };
 
 array<observation, CLASSES> getSampleMeans(const array<sample, CLASSES>& samples,

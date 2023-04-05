@@ -1,4 +1,6 @@
 #pragma once
+#include <fstream>
+
 #include "gauss.h"
 
 #define CLASSES 2u
@@ -23,6 +25,13 @@ enum DataSet { A, B };
  * @param seed     Seed the RNG. Keep consistent for the same samples.
  */
 void getSamples(DataSet set, array<sample, CLASSES>& samples, unsigned seed = 1);
+
+/**
+ * @brief Retreives samples from an input file
+ *
+ * @param samples
+ */
+void getSamplesFromFile(std::ifstream& in_file, array<sample, CLASSES>& samples);
 
 /**
  * @brief Retrieve the means of a data set.

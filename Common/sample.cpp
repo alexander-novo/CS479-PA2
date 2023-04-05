@@ -12,6 +12,21 @@ void getSamples(DataSet set, std::array<sample, CLASSES>& samples, unsigned seed
 	}
 }
 
+void getSamplesFromFile(std::ifstream& in_file, array<sample, CLASSES>& samples) {
+	observation temp;
+	unsigned class_idx;
+
+	while (true) {
+		for (unsigned i = 0; i < DIM; i++) { in_file >> temp[i]; }
+
+		in_file >> class_idx;
+
+		if (!in_file) return;
+
+		samples[class_idx].push_back(temp);
+	}
+}
+
 std::array<observation, CLASSES> getMeans(DataSet set) {
 	switch (set) {
 		case DataSet::A:
